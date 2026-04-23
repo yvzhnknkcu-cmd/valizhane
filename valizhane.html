@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Valizhane Yönetim Sistemi</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --primary: #2563eb; --primary-dark: #1d4ed8; --secondary: #64748b;
+    --success: #16a34a; --danger: #dc2626; --warning: #d97706;
+    --bg: #f1f5f9; --card: #ffffff; --border: #e2e8f0;
+    --text: #1e293b; --text-light: #64748b;
+    --a-block: #3b82f6; --b-block: #8b5cf6;
+  }
+  body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* LOGIN */
+  .login-overlay {
+    position: fixed; inset: 0; background: linear-gradient(135deg, #1e3a8a, #2563eb);
+    display: flex; align-items: center; justify-content: center; z-index: 9999;
+  }
+  .login-box {
+    background: white; border-radius: 20px; padding: 40px;
+    width: 340px; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  }
+  .login-box .logo { font-size: 3rem; margin-bottom: 10px; }
+  .login-box h2 { font-size: 1.4rem; font-weight: 700; margin-bottom: 6px; color: var(--text); }
+  .login-box p { color: var(--text-light); font-size: 0.85rem; margin-bottom: 24px; }
+  .login-box input {
+    width: 100%; padding: 12px; border: 2px solid var(--border); border-radius: 10px;
+    font-size: 1rem; margin-bottom: 12px; text-align: center; letter-spacing: 4px;
+  }
+  .login-box input:focus { outline: none; border-color: var(--primary); }
+  .login-box button {
+    width: 100%; padding: 12px; background: var(--primary); color: white;
+    border: none; border-radius: 10px; font-size: 1rem; font-weight: 600;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .login-box button:hover { background: var(--primary-dark); }
+  .login-error { color: var(--danger); font-size: 0.82rem; margin-top: 8px; display: none; }
+  .login-note { color: var(--text-light); font-size: 0.75rem; margin-top: 16px; }
+
+  /* NAV */
+  nav {
+    background: linear-gradient(135deg, #1e3a8a, #2563eb);
+    color: white; padding: 0 20px;
+    display: flex; align-items: center; justify-content: space-between;
+    height: 60px; box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    position: sticky; top: 0; z-index: 100;
+  }
+  nav .logo { font-size: 1.2rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  nav .nav-links { display: flex; gap: 4px; flex-wrap: wrap; }
+  nav .nav-links button {
+    background: rgba(255,255,255,0.1); color: white;
+    border: 1px solid rgba(255,255,255,0.2);
+    padding: 6px 12px; border-radius: 6px; cursor: pointer;
+    font-size: 0.82rem; transition: all 0.2s; white-space: nowrap;
+  }
+  nav .nav-links button:hover,
+  nav .nav-links button.active { background: rgba(255,255,255,0.25); border-color: rgba(255,255,255,0.5); }
+  .sync-status {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 0.75rem; color: rgba(255,255,255,0.8);
+  }
+  .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; animation: pulse 2s infinite; }
+  .sync-dot.syncing { background: #f59e0b; animation: none; }
+  .sync-dot.error { background: #ef4444; animation: none; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* PAGES */
+  .page { display: none; padding: 20px; max-width: 1400px; margin: 0 auto; }
+  .page.active { display: block; }
+
+  .card { background: var(--card); border-radius: 12px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); border: 1px solid var(--border); }
+  .card-title { font-size: 1rem; font-weight: 600; color: var(--text); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin-bottom: 20px; }
+  .stat-card {
+    background: var(--card); border-radius: 12px; padding: 18px;
+    text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    border: 1px solid var(--border); border-top: 4px solid var(--primary);
+  }
+  .stat-card.success { border-top-color: var(--success); }
+  .stat-card.danger  { border-top-color: var(--danger); }
+  .stat-card.a-block { border-top-color: var(--a-block); }
+  .stat-card.b-block { border-top-color: var(--b-block); }
+  .stat-number { font-size: 2rem; font-weight: 800; color: var(--primary); }
+  .stat-card.success .stat-number { color: var(--success); }
+  .stat-card.danger  .stat-number { color: var(--danger); }
+  .stat-card.a-block .stat-number { color: var(--a-block); }
+  .stat-card.b-block .stat-number { color: var(--b-block); }
+  .stat-label { font-size: 0.78rem; color: var(--text-light); margin-top: 4px; font-weight: 500; }
+
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+  .form-group { display: flex; flex-direction: column; gap: 4px; }
+  .form-group label { font-size: 0.8rem; font-weight: 600; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; }
+  .form-group input, .form-group select, .form-group textarea {
+    padding: 9px 12px; border: 1.5px solid var(--border); border-radius: 8px;
+    font-size: 0.9rem; transition: border-color 0.2s; background: white; color: var(--text);
+  }
+  .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+    outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+  }
+
+  .btn {
+    padding: 9px 18px; border: none; border-radius: 8px; cursor: pointer;
+    font-size: 0.88rem; font-weight: 600; transition: all 0.2s;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .btn-primary  { background: var(--primary); color: white; }
+  .btn-primary:hover  { background: var(--primary-dark); transform: translateY(-1px); }
+  .btn-success  { background: var(--success); color: white; }
+  .btn-success:hover  { background: #15803d; }
+  .btn-danger   { background: var(--danger); color: white; }
+  .btn-danger:hover   { background: #b91c1c; }
+  .btn-warning  { background: var(--warning); color: white; }
+  .btn-warning:hover  { background: #b45309; }
+  .btn-secondary{ background: var(--secondary); color: white; }
+  .btn-secondary:hover{ background: #475569; }
+  .btn-sm  { padding: 5px 10px; font-size: 0.78rem; }
+  .btn-block { width: 100%; justify-content: center; }
+
+  .table-wrap { overflow-x: auto; border-radius: 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  thead th {
+    background: #f8fafc; padding: 11px 14px; text-align: left;
+    font-weight: 600; color: var(--text-light); font-size: 0.78rem;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    border-bottom: 2px solid var(--border); white-space: nowrap;
+  }
+  tbody td { padding: 11px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tbody tr:hover { background: #f8fafc; }
+  tbody tr:last-child td { border-bottom: none; }
+
+  .badge { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; gap: 4px; }
+  .badge-inside  { background: #dcfce7; color: #166534; }
+  .badge-outside { background: #fee2e2; color: #991b1b; }
+  .badge-a       { background: #dbeafe; color: #1e40af; }
+  .badge-b       { background: #ede9fe; color: #5b21b6; }
+
+  /* MODAL */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    display: none; align-items: center; justify-content: center; z-index: 1000; padding: 20px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: white; border-radius: 16px; padding: 28px;
+    width: 100%; max-width: 520px; box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    max-height: 90vh; overflow-y: auto;
+  }
+  .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .modal-header h3 { font-size: 1.1rem; font-weight: 700; }
+  .modal-close { background: none; border: none; font-size: 1.4rem; cursor: pointer; color: var(--text-light); }
+  .modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+
+  /* TOAST */
+  .toast-container { position: fixed; top: 70px; right: 20px; z-index: 9000; display: flex; flex-direction: column; gap: 8px; }
+  .toast {
+    background: white; border-radius: 10px; padding: 12px 16px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15); border-left: 4px solid var(--success);
+    font-size: 0.88rem; font-weight: 500; min-width: 260px;
+    animation: slideIn 0.3s ease; display: flex; align-items: center; gap: 8px;
+  }
+  .toast.error { border-left-color: var(--danger); }
+  .toast.warning { border-left-color: var(--warning); }
+  @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+  /* LOADING */
+  .loading-overlay {
+    position: fixed; inset: 0; background: rgba(255,255,255,0.8);
+    display: none; align-items: center; justify-content: center; z-index: 8000;
+  }
+  .loading-overlay.open { display: flex; }
+  .spinner { width: 40px; height: 40px; border: 4px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .filters { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+  .filters input, .filters select { padding: 8px 12px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 0.88rem; background: white; }
+
+  .quick-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
+  .quick-btn {
+    padding: 20px; border: none; border-radius: 12px; cursor: pointer;
+    font-size: 1rem; font-weight: 600; transition: all 0.2s;
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    color: white;
+  }
+  .quick-btn .icon { font-size: 2rem; }
+  .quick-btn.teslim-al { background: linear-gradient(135deg, #16a34a, #15803d); }
+  .quick-btn.teslim-et { background: linear-gradient(135deg, #dc2626, #b91c1c); }
+  .quick-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.2); }
+
+  .raf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 8px; }
+  .raf-item {
+    padding: 10px; border-radius: 8px; text-align: center; font-size: 0.8rem;
+    font-weight: 600; border: 2px solid; cursor: default;
+  }
+  .raf-item.bos { background: #dcfce7; border-color: #16a34a; color: #166534; }
+  .raf-item.dolu { background: #fee2e2; border-color: #dc2626; color: #991b1b; }
+
+  .recent-list { display: flex; flex-direction: column; gap: 8px; }
+  .recent-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px; background: #f8fafc; border-radius: 8px;
+    font-size: 0.85rem;
+  }
+  .recent-icon { font-size: 1.2rem; }
+  .recent-info { flex: 1; }
+  .recent-name { font-weight: 600; }
+  .recent-detail { color: var(--text-light); font-size: 0.78rem; }
+  .recent-time { color: var(--text-light); font-size: 0.75rem; white-space: nowrap; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media(max-width:768px) { .grid-2 { grid-template-columns: 1fr; } .quick-actions { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <div class="logo">📦</div>
+    <h2>Valizhane Sistemi</h2>
+    <p>Devam etmek için şifre girin</p>
+    <input type="password" id="loginInput" placeholder="Şifre" onkeypress="if(event.key==='Enter')doLogin()">
+    <button onclick="doLogin()">🔓 Giriş Yap</button>
+    <div class="login-error" id="loginError">❌ Hatalı şifre!</div>
+    <div class="login-note">KVKK koruması altındadır.<br>Şifrenizi başkalarıyla paylaşmayın.</div>
+  </div>
+</div>
+
+<!-- LOADING -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div style="text-align:center">
+    <div class="spinner"></div>
+    <p style="margin-top:12px;color:var(--text-light);font-size:0.88rem" id="loadingText">Yükleniyor...</p>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- NAV -->
+<nav>
+  <div class="logo">📦 Valizhane</div>
+  <div class="nav-links">
+    <button onclick="showPage('panel')" class="active" id="nav-panel">📊 Panel</button>
+    <button onclick="showPage('hizli')" id="nav-hizli">⚡ Hızlı İşlem</button>
+    <button onclick="showPage('ogrenciler')" id="nav-ogrenciler">👥 Öğrenciler</button>
+    <button onclick="showPage('raflar')" id="nav-raflar">🗄️ Raflar</button>
+    <button onclick="showPage('islemler')" id="nav-islemler">📋 İşlemler</button>
+    <button onclick="showPage('ayarlar')" id="nav-ayarlar">⚙️</button>
+  </div>
+  <div class="sync-status">
+    <div class="sync-dot" id="syncDot"></div>
+    <span id="syncText">Bağlanılıyor...</span>
+  </div>
+</nav>
+
+<!-- PANEL -->
+<div class="page active" id="page-panel">
+  <div class="stats-grid">
+    <div class="stat-card"><div class="stat-number" id="s-toplam">0</div><div class="stat-label">📦 Toplam İçerideki Valiz</div></div>
+    <div class="stat-card a-block"><div class="stat-number" id="s-ablok">0</div><div class="stat-label">🔵 A Blok Valiz</div></div>
+    <div class="stat-card b-block"><div class="stat-number" id="s-bblok">0</div><div class="stat-label">🟣 B Blok Valiz</div></div>
+    <div class="stat-card success"><div class="stat-number" id="s-ogrenci">0</div><div class="stat-label">👤 Valizi İçeride Olan</div></div>
+    <div class="stat-card danger"><div class="stat-number" id="s-kayitli">0</div><div class="stat-label">👥 Kayıtlı Öğrenci</div></div>
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">📦 Şu An İçerideki Valiz Listesi</div>
+      <div class="filters">
+        <input type="text" placeholder="🔍 Öğrenci ara..." id="panelAra" oninput="renderPanel()">
+        <select id="panelBlok" onchange="renderPanel()">
+          <option value="">Tüm Bloklar</option>
+          <option value="A">A Blok</option>
+          <option value="B">B Blok</option>
+        </select>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>ÖĞRENCİ</th><th>ODA</th><th>BLOK</th><th>RAF</th><th>VALİZ</th><th>GİRİŞ TARİHİ</th><th>İŞLEM</th></tr></thead>
+          <tbody id="panelTable"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">🕐 Son İşlemler</div>
+      <div class="recent-list" id="recentList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- HIZLI İŞLEM -->
+<div class="page" id="page-hizli">
+  <div class="quick-actions">
+    <button class="quick-btn teslim-al" onclick="openModal('teslimAlModal')">
+      <span class="icon">📥</span>
+      <span>Valiz Teslim Al</span>
+      <span style="font-size:0.8rem;opacity:0.9">Öğrenciden valiz kabul et</span>
+    </button>
+    <button class="quick-btn teslim-et" onclick="openModal('teslimEtModal')">
+      <span class="icon">📤</span>
+      <span>Valiz Teslim Et</span>
+      <span style="font-size:0.8rem;opacity:0.9">Valizi öğrenciye iade et</span>
+    </button>
+  </div>
+  <div class="card">
+    <div class="card-title">📦 Aktif Valizler</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>ÖĞRENCİ</th><th>ODA</th><th>BLOK</th><th>RAF</th><th>VALİZ</th><th>TESLİM TARİHİ</th><th>NOT</th><th>İŞLEM</th></tr></thead>
+        <tbody id="hizliTable"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ÖĞRENCİLER -->
+<div class="page" id="page-ogrenciler">
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-title">➕ Yeni Öğrenci Ekle</div>
+    <div class="form-grid">
+      <div class="form-group"><label>Ad</label><input type="text" id="og-ad" placeholder="Adı"></div>
+      <div class="form-group"><label>Soyad</label><input type="text" id="og-soyad" placeholder="Soyadı"></div>
+      <div class="form-group"><label>TC / Öğrenci No</label><input type="text" id="og-tc" placeholder="TC veya Öğrenci No"></div>
+      <div class="form-group"><label>Oda No</label><input type="text" id="og-oda" placeholder="Oda numarası"></div>
+      <div class="form-group"><label>Telefon</label><input type="text" id="og-tel" placeholder="05XX XXX XX XX"></div>
+    </div>
+    <div style="margin-top:14px">
+      <button class="btn btn-primary" onclick="ogrenciEkle()">➕ Öğrenci Ekle</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">👥 Öğrenci Listesi</div>
+    <div class="filters">
+      <input type="text" placeholder="🔍 Öğrenci ara..." id="ogAra" oninput="renderOgrenciler()">
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>AD SOYAD</th><th>TC/ÖĞRENCİ NO</th><th>ODA</th><th>TELEFON</th><th>KAYIT TARİHİ</th><th>VALİZ</th><th>İŞLEM</th></tr></thead>
+        <tbody id="ogrenciTable"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- RAFLAR -->
+<div class="page" id="page-raflar">
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">🔵 A Blok Raflar</div>
+      <div class="raf-grid" id="rafA"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">🟣 B Blok Raflar</div>
+      <div class="raf-grid" id="rafB"></div>
+    </div>
+  </div>
+</div>
+
+<!-- İŞLEMLER -->
+<div class="page" id="page-islemler">
+  <div class="card">
+    <div class="card-title">📋 Tüm İşlem Geçmişi</div>
+    <div class="filters">
+      <input type="text" placeholder="🔍 Ara..." id="islemAra" oninput="renderIslemler()">
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>TARİH</th><th>İŞLEM</th><th>DETAY</th></tr></thead>
+        <tbody id="islemTable"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- AYARLAR -->
+<div class="page" id="page-ayarlar">
+  <div class="card">
+    <div class="card-title">⚙️ Ayarlar</div>
+    <div class="form-group" style="max-width:300px;margin-bottom:16px">
+      <label>Raf Sayısı (Her Blok)</label>
+      <input type="number" id="ayar-raf" min="1" max="100" value="20">
+    </div>
+    <div class="form-group" style="max-width:300px;margin-bottom:16px">
+      <label>Yeni Şifre</label>
+      <input type="password" id="ayar-sifre" placeholder="Boş bırakırsan değişmez">
+    </div>
+    <button class="btn btn-primary" onclick="kaydetAyarlar()">💾 Kaydet</button>
+  </div>
+  <div class="card" style="margin-top:20px">
+    <div class="card-title">🔗 Bağlantı Durumu</div>
+    <p style="font-size:0.88rem;color:var(--text-light);margin-bottom:12px">Google Sheets API URL:</p>
+    <code style="font-size:0.78rem;word-break:break-all;color:var(--primary)" id="apiUrlGoster"></code>
+    <div style="margin-top:12px">
+      <button class="btn btn-secondary btn-sm" onclick="testBaglanti()">🔌 Bağlantıyı Test Et</button>
+      <button class="btn btn-warning btn-sm" onclick="zorlaSync()" style="margin-left:8px">🔄 Zorla Senkronize Et</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Teslim Al -->
+<div class="modal-overlay" id="teslimAlModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>📥 Valiz Teslim Al</h3>
+      <button class="modal-close" onclick="closeModal('teslimAlModal')">✕</button>
+    </div>
+    <div class="form-grid" style="grid-template-columns:1fr">
+      <div class="form-group">
+        <label>Öğrenci</label>
+        <select id="ta-ogrenci"><option value="">-- Öğrenci Seçin --</option></select>
+      </div>
+      <div class="form-group">
+        <label>Blok</label>
+        <select id="ta-blok" onchange="rafDoldur('ta')">
+          <option value="">-- Blok Seçin --</option>
+          <option value="A">A Blok</option>
+          <option value="B">B Blok</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Raf No</label>
+        <select id="ta-raf"><option value="">-- Önce Blok Seçin --</option></select>
+      </div>
+      <div class="form-group">
+        <label>Valiz Sayısı</label>
+        <input type="number" id="ta-sayi" min="1" max="20" value="1">
+      </div>
+      <div class="form-group">
+        <label>Teslim Tarihi</label>
+        <input type="date" id="ta-tarih">
+      </div>
+      <div class="form-group">
+        <label>Not (Opsiyonel)</label>
+        <textarea id="ta-not" rows="2" placeholder="Varsa not ekleyin..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('teslimAlModal')">İptal</button>
+      <button class="btn btn-success" onclick="valizTeslimAl()">📥 Teslim Al</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Teslim Et -->
+<div class="modal-overlay" id="teslimEtModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>📤 Valiz Teslim Et</h3>
+      <button class="modal-close" onclick="closeModal('teslimEtModal')">✕</button>
+    </div>
+    <div class="form-grid" style="grid-template-columns:1fr">
+      <div class="form-group">
+        <label>Aktif Valiz Kaydı</label>
+        <select id="te-valiz"><option value="">-- Valiz Kaydı Seçin --</option></select>
+      </div>
+      <div class="form-group">
+        <label>Teslim Etme Tarihi</label>
+        <input type="date" id="te-tarih">
+      </div>
+      <div class="form-group">
+        <label>Not (Opsiyonel)</label>
+        <textarea id="te-not" rows="2" placeholder="Varsa not ekleyin..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('teslimEtModal')">İptal</button>
+      <button class="btn btn-danger" onclick="valizTeslimEt()">📤 Teslim Et</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================
+// AYARLAR
+// ============================================
+const API_URL = "https://script.google.com/macros/s/AKfycbw24bwdUS5ejuXIfyknioHeUSqrOObmz_3zzla2GdY8dLav7LREVxsXqr8ShCW0dUIm/exec";
+const SIFRE = "1234"; // ← Şifreyi buradan değiştir
+let RAF_SAYISI = 20;
+
+// ============================================
+// VERİ
+// ============================================
+let ogrenciler = [];
+let valizler   = [];
+let islemler   = [];
+let syncInterval = null;
+
+// ============================================
+// LOGIN
+// ============================================
+function doLogin() {
+  const val = document.getElementById('loginInput').value;
+  const sifre = localStorage.getItem('valizhane_sifre') || SIFRE;
+  if (val === sifre) {
+    document.getElementById('loginOverlay').style.display = 'none';
+    init();
+  } else {
+    document.getElementById('loginError').style.display = 'block';
+    document.getElementById('loginInput').value = '';
+  }
+}
+
+// ============================================
+// INIT
+// ============================================
+async function init() {
+  document.getElementById('apiUrlGoster').textContent = API_URL;
+  const savedRaf = localStorage.getItem('valizhane_raf');
+  if (savedRaf) RAF_SAYISI = parseInt(savedRaf);
+  document.getElementById('ayar-raf').value = RAF_SAYISI;
+  await syncAll();
+  syncInterval = setInterval(syncAll, 15000); // 15 saniyede bir sync
+}
+
+// ============================================
+// API
+// ============================================
+async function apiGet(sheet) {
+  const res = await fetch(`${API_URL}?action=getAll&sheet=${sheet}`);
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error);
+  return json.data || [];
+}
+
+async function apiAdd(sheet, data) {
+  const params = new URLSearchParams({
+    action: 'add',
+    sheet: sheet,
+    data: JSON.stringify(data)
+  });
+  const res = await fetch(API_URL + '?' + params.toString());
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error);
+  return json.data;
+}
+
+async function apiDelete(sheet, id) {
+  const params = new URLSearchParams({
+    action: 'delete',
+    sheet: sheet,
+    id: id
+  });
+  const res = await fetch(API_URL + '?' + params.toString());
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error);
+}
+async function apiUpdate(sheet, data) {
+  const params = new URLSearchParams({
+    action: 'update',
+    sheet: sheet,
+    data: JSON.stringify(data)
+  });
+  const res = await fetch(API_URL + '?' + params.toString());
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error);
+}
+
+// ============================================
+// SYNC
+// ============================================
+async function syncAll() {
+  setSyncStatus('syncing', 'Senkronize ediliyor...');
+  try {
+    const [og, vl, is] = await Promise.all([
+      apiGet('Ogrenciler'),
+      apiGet('Valizler'),
+      apiGet('Islemler')
+    ]);
+    ogrenciler = og;
+    valizler   = vl;
+    islemler   = is;
+    renderAll();
+    setSyncStatus('ok', 'Senkronize ✓');
+  } catch(e) {
+    setSyncStatus('error', 'Bağlantı hatası!');
+    showToast('Bağlantı hatası: ' + e.message, 'error');
+  }
+}
+
+async function zorlaSync() {
+  await syncAll();
+  showToast('Senkronize edildi!', 'success');
+}
+
+function setSyncStatus(type, text) {
+  const dot  = document.getElementById('syncDot');
+  const span = document.getElementById('syncText');
+  dot.className  = 'sync-dot' + (type === 'syncing' ? ' syncing' : type === 'error' ? ' error' : '');
+  span.textContent = text;
+}
+
+// ============================================
+// RENDER ALL
+// ============================================
+function renderAll() {
+  renderStats();
+  renderPanel();
+  renderHizli();
+  renderOgrenciler();
+  renderRaflar();
+  renderIslemler();
+  renderRecent();
+  doldurSelectler();
+}
+
+// ============================================
+// STATS
+// ============================================
+function renderStats() {
+  const aktif = valizler.filter(v => v.durum === 'icerde');
+  document.getElementById('s-toplam').textContent  = aktif.reduce((s,v) => s + (parseInt(v.valizSayisi)||0), 0);
+  document.getElementById('s-ablok').textContent   = aktif.filter(v=>v.blok==='A').reduce((s,v)=>s+(parseInt(v.valizSayisi)||0),0);
+  document.getElementById('s-bblok').textContent   = aktif.filter(v=>v.blok==='B').reduce((s,v)=>s+(parseInt(v.valizSayisi)||0),0);
+  document.getElementById('s-ogrenci').textContent = [...new Set(aktif.map(v=>v.ogrenciId))].length;
+  document.getElementById('s-kayitli').textContent = ogrenciler.length;
+}
+
+// ============================================
+// PANEL
+// ============================================
+function renderPanel() {
+  const ara  = document.getElementById('panelAra').value.toLowerCase();
+  const blok = document.getElementById('panelBlok').value;
+  const aktif = valizler.filter(v => v.durum === 'icerde');
+  const filtered = aktif.filter(v => {
+    const matchAra  = !ara  || v.ogrenciAd.toLowerCase().includes(ara);
+    const matchBlok = !blok || v.blok === blok;
+    return matchAra && matchBlok;
+  });
+
+  const tbody = document.getElementById('panelTable');
+  if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-light);padding:30px">İçeride valiz yok</td></tr>'; return; }
+
+  tbody.innerHTML = filtered.map(v => {
+    const og = ogrenciler.find(o => o.id === v.ogrenciId) || {};
+    return `<tr>
+      <td><strong>${v.ogrenciAd}</strong></td>
+      <td>${og.odaNo || '-'}</td>
+      <td><span class="badge badge-${v.blok?.toLowerCase()}">${v.blok} Blok</span></td>
+      <td>Raf ${v.rafNo}</td>
+      <td>${v.valizSayisi}</td>
+      <td>${v.teslimTarih}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="hizliTeslimEt('${v.id}')">📤 Teslim Et</button></td>
+    </tr>`;
+  }).join('');
+}
+
+// ============================================
+// HIZLI
+// ============================================
+function renderHizli() {
+  const aktif = valizler.filter(v => v.durum === 'icerde');
+  const tbody = document.getElementById('hizliTable');
+  if (!aktif.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-light);padding:30px">İçeride valiz yok</td></tr>'; return; }
+
+  tbody.innerHTML = aktif.map(v => `<tr>
+    <td><strong>${v.ogrenciAd}</strong></td>
+    <td>${(ogrenciler.find(o=>o.id===v.ogrenciId)||{}).odaNo||'-'}</td>
+    <td><span class="badge badge-${v.blok?.toLowerCase()}">${v.blok} Blok</span></td>
+    <td>Raf ${v.rafNo}</td>
+    <td>${v.valizSayisi}</td>
+    <td>${v.teslimTarih}</td>
+    <td>${v.not||'-'}</td>
+    <td><button class="btn btn-danger btn-sm" onclick="hizliTeslimEt('${v.id}')">📤 Teslim Et</button></td>
+  </tr>`).join('');
+}
+
+// ============================================
+// ÖĞRENCİLER
+// ============================================
+function renderOgrenciler() {
+  const ara = document.getElementById('ogAra').value.toLowerCase();
+  const filtered = ogrenciler.filter(o =>
+    !ara || (o.ad+' '+o.soyad+' '+o.tcNo+' '+o.odaNo).toLowerCase().includes(ara)
+  );
+  const tbody = document.getElementById('ogrenciTable');
+  if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-light);padding:30px">Öğrenci bulunamadı</td></tr>'; return; }
+
+  tbody.innerHTML = filtered.map(o => {
+    const aktifValiz = valizler.filter(v => v.ogrenciId === o.id && v.durum === 'icerde');
+    const badge = aktifValiz.length
+      ? `<span class="badge badge-inside">✅ ${aktifValiz.length} valiz içeride</span>`
+      : `<span class="badge badge-outside">❌ Valiz yok</span>`;
+    return `<tr>
+      <td><strong>${o.ad} ${o.soyad}</strong></td>
+      <td>${o.tcNo}</td>
+      <td>${o.odaNo}</td>
+      <td>${o.telefon}</td>
+      <td>${o.kayitTarih}</td>
+      <td>${badge}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="ogrenciSil('${o.id}')">🗑️ Sil</button></td>
+    </tr>`;
+  }).join('');
+}
+
+// ============================================
+// RAFLAR
+// ============================================
+function renderRaflar() {
+  ['A','B'].forEach(blok => {
+    const container = document.getElementById('raf'+blok);
+    let html = '';
+    for (let i = 1; i <= RAF_SAYISI; i++) {
+      const dolu = valizler.some(v => v.blok === blok && parseInt(v.rafNo) === i && v.durum === 'icerde');
+      html += `<div class="raf-item ${dolu?'dolu':'bos'}">
+        <div>Raf ${i}</div>
+        <div>${dolu?'🔴 Dolu':'🟢 Boş'}</div>
+      </div>`;
+    }
+    container.innerHTML = html;
+  });
+}
+
+// ============================================
+// İŞLEMLER
+// ============================================
+function renderIslemler() {
+  const ara = document.getElementById('islemAra').value.toLowerCase();
+  const filtered = [...islemler].reverse().filter(i =>
+    !ara || (i.islem+' '+i.detay).toLowerCase().includes(ara)
+  );
+  const tbody = document.getElementById('islemTable');
+  if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text-light);padding:30px">İşlem bulunamadı</td></tr>'; return; }
+
+  tbody.innerHTML = filtered.map(i => `<tr>
+    <td style="white-space:nowrap">${i.tarih}</td>
+    <td>${i.islem}</td>
+    <td>${i.detay}</td>
+  </tr>`).join('');
+}
+
+// ============================================
+// RECENT
+// ============================================
+function renderRecent() {
+  const son = [...islemler].reverse().slice(0, 8);
+  const container = document.getElementById('recentList');
+  if (!son.length) { container.innerHTML = '<p style="color:var(--text-light);font-size:0.85rem">Henüz işlem yok</p>'; return; }
+
+  container.innerHTML = son.map(i => {
+    const islemStr = i.islem || '';
+    const detayStr = i.detay || '';
+    const tarihStr = i.tarih || '';
+    const icon = islemStr.includes('Teslim Al') ? '📥' 
+               : islemStr.includes('Teslim Et') ? '📤' 
+               : islemStr.includes('Eklendi')   ? '➕'
+               : islemStr.includes('Silindi')   ? '🗑️' 
+               : '📝';
+    return `
+      <div class="recent-item">
+        <div class="recent-icon">${icon}</div>
+        <div class="recent-info">
+          <div class="recent-name">${islemStr}</div>
+          <div class="recent-detail">${detayStr}</div>
+        </div>
+        <div class="recent-time">${tarihStr}</div>
+      </div>`;
+  }).join('');
+}
+
+// ============================================
+// SELECTLER
+// ============================================
+function doldurSelectler() {
+  // Teslim Al - öğrenci
+  const taOg = document.getElementById('ta-ogrenci');
+  const secili = taOg.value;
+  taOg.innerHTML = '<option value="">-- Öğrenci Seçin --</option>' +
+    ogrenciler.map(o => `<option value="${o.id}">${o.ad} ${o.soyad} - Oda ${o.odaNo}</option>`).join('');
+  taOg.value = secili;
+
+  // Teslim Et - aktif valizler
+  const teVal = document.getElementById('te-valiz');
+  const secili2 = teVal.value;
+  const aktif = valizler.filter(v => v.durum === 'icerde');
+  teVal.innerHTML = '<option value="">-- Valiz Kaydı Seçin --</option>' +
+    aktif.map(v => `<option value="${v.id}">${v.ogrenciAd} - ${v.blok} Blok Raf ${v.rafNo} (${v.valizSayisi} valiz)</option>`).join('');
+  teVal.value = secili2;
+}
+
+function rafDoldur(prefix) {
+  const blok = document.getElementById(prefix+'-blok').value;
+  const rafSelect = document.getElementById(prefix+'-raf');
+  if (!blok) { rafSelect.innerHTML = '<option value="">-- Önce Blok Seçin --</option>'; return; }
+
+  const doluRaflar = valizler
+    .filter(v => v.blok === blok && v.durum === 'icerde')
+    .map(v => parseInt(v.rafNo));
+
+  let html = '<option value="">-- Raf Seçin --</option>';
+  for (let i = 1; i <= RAF_SAYISI; i++) {
+    const dolu = doluRaflar.includes(i);
+    html += `<option value="${i}" ${dolu?'disabled style="color:red"':''}>${dolu?'🔴':'🟢'} Raf ${i}</option>`;
+  }
+  rafSelect.innerHTML = html;
+}
+
+// ============================================
+// ÖĞRENCİ EKLE
+// ============================================
+async function ogrenciEkle() {
+  const ad    = document.getElementById('og-ad').value.trim();
+  const soyad = document.getElementById('og-soyad').value.trim();
+  const tc    = document.getElementById('og-tc').value.trim();
+  const oda   = document.getElementById('og-oda').value.trim();
+  const tel   = document.getElementById('og-tel').value.trim();
+
+  if (!ad || !soyad || !tc || !oda) { showToast('Ad, Soyad, TC/No ve Oda No zorunludur!', 'error'); return; }
+
+  showLoading('Öğrenci ekleniyor...');
+  try {
+    const yeni = await apiAdd('Ogrenciler', {
+      ad, soyad, tcNo: tc, odaNo: oda, telefon: tel,
+      kayitTarih: new Date().toLocaleString('tr-TR')
+    });
+    ogrenciler.push(yeni);
+
+    await apiAdd('Islemler', {
+      tarih: new Date().toLocaleString('tr-TR'),
+      islem: '➕ Öğrenci Eklendi',
+      detay: `${ad} ${soyad} - Oda ${oda}`
+    });
+
+    ['og-ad','og-soyad','og-tc','og-oda','og-tel'].forEach(id => document.getElementById(id).value = '');
+    await syncAll();
+    showToast(`${ad} ${soyad} eklendi!`, 'success');
+  } catch(e) {
+    showToast('Hata: ' + e.message, 'error');
+  }
+  hideLoading();
+}
+
+// ============================================
+// ÖĞRENCİ SİL
+// ============================================
+async function ogrenciSil(id) {
+  const og = ogrenciler.find(o => o.id === id);
+  if (!og) return;
+  const aktifValiz = valizler.filter(v => v.ogrenciId === id && v.durum === 'icerde');
+  if (aktifValiz.length) { showToast('Bu öğrencinin içeride valizi var, önce teslim edin!', 'error'); return; }
+  if (!confirm(`${og.ad} ${og.soyad} silinsin mi?`)) return;
+
+  showLoading('Siliniyor...');
+  try {
+    await apiDelete('Ogrenciler', id);
+    await apiAdd('Islemler', {
+      tarih: new Date().toLocaleString('tr-TR'),
+      islem: '🗑️ Öğrenci Silindi',
+      detay: `${og.ad} ${og.soyad}`
+    });
+    await syncAll();
+    showToast('Öğrenci silindi!', 'success');
+  } catch(e) {
+    showToast('Hata: ' + e.message, 'error');
+  }
+  hideLoading();
+}
+
+// ============================================
+// VALİZ TESLİM AL
+// ============================================
+async function valizTeslimAl() {
+  const ogId  = document.getElementById('ta-ogrenci').value;
+  const blok  = document.getElementById('ta-blok').value;
+  const raf   = document.getElementById('ta-raf').value;
+  const sayi  = document.getElementById('ta-sayi').value;
+  const tarih = document.getElementById('ta-tarih').value;
+  const not   = document.getElementById('ta-not').value.trim();
+
+  if (!ogId || !blok || !raf || !sayi || !tarih) { showToast('Tüm alanları doldurun!', 'error'); return; }
+
+  const og = ogrenciler.find(o => o.id === ogId);
+  if (!og) return;
+
+  showLoading('Valiz kaydediliyor...');
+  try {
+    await apiAdd('Valizler', {
+      ogrenciId: ogId,
+      ogrenciAd: `${og.ad} ${og.soyad}`,
+      blok, rafNo: raf,
+      valizSayisi: sayi,
+      teslimTarih: tarih,
+      not, durum: 'icerde',
+      teslimEtmeTarih: ''
+    });
+
+    await apiAdd('Islemler', {
+      tarih: new Date().toLocaleString('tr-TR'),
+      islem: '📥 Valiz Teslim Alındı',
+      detay: `${og.ad} ${og.soyad} - ${blok} Blok Raf ${raf} - ${sayi} valiz`
+    });
+
+    closeModal('teslimAlModal');
+    await syncAll();
+    showToast(`${og.ad} ${og.soyad} - ${sayi} valiz teslim alındı!`, 'success');
+  } catch(e) {
+    showToast('Hata: ' + e.message, 'error');
+  }
+  hideLoading();
+}
+
+// ============================================
+// VALİZ TESLİM ET
+// ============================================
+async function valizTeslimEt() {
+  const valizId = document.getElementById('te-valiz').value;
+  const tarih   = document.getElementById('te-tarih').value;
+  const not     = document.getElementById('te-not').value.trim();
+
+  if (!valizId || !tarih) { showToast('Valiz seçin ve tarih girin!', 'error'); return; }
+
+  const valiz = valizler.find(v => v.id === valizId);
+  if (!valiz) return;
+
+  showLoading('İşleniyor...');
+  try {
+    await apiUpdate('Valizler', {
+      id: valizId,
+      durum: 'teslim',
+      teslimEtmeTarih: tarih,
+      not: not || valiz.not
+    });
+
+    await apiAdd('Islemler', {
+      tarih: new Date().toLocaleString('tr-TR'),
+      islem: '📤 Valiz Teslim Edildi',
+      detay: `${valiz.ogrenciAd} - ${valiz.blok} Blok Raf ${valiz.rafNo} - ${valiz.valizSayisi} valiz`
+    });
+
+    closeModal('teslimEtModal');
+    await syncAll();
+    showToast(`${valiz.ogrenciAd} - valiz teslim edildi!`, 'success');
+  } catch(e) {
+    showToast('Hata: ' + e.message, 'error');
+  }
+  hideLoading();
+}
+
+// ============================================
+// HIZLI TESLİM ET (Panel/Hızlı sayfasından)
+// ============================================
+async function hizliTeslimEt(valizId) {
+  const valiz = valizler.find(v => v.id === valizId);
+  if (!valiz) return;
+  if (!confirm(`${valiz.ogrenciAd} - ${valiz.blok} Blok Raf ${valiz.rafNo}\nValiz teslim edilsin mi?`)) return;
+
+  const tarih = new Date().toISOString().split('T')[0];
+
+  showLoading('İşleniyor...');
+  try {
+    await apiUpdate('Valizler', {
+      id: valizId, durum: 'teslim', teslimEtmeTarih: tarih
+    });
+    await apiAdd('Islemler', {
+      tarih: new Date().toLocaleString('tr-TR'),
+      islem: '📤 Valiz Teslim Edildi',
+      detay: `${valiz.ogrenciAd} - ${valiz.blok} Blok Raf ${valiz.rafNo}`
+    });
+    await syncAll();
+    showToast('Valiz teslim edildi!', 'success');
+  } catch(e) {
+    showToast('Hata: ' + e.message, 'error');
+  }
+  hideLoading();
+}
+
+// ============================================
+// AYARLAR
+// ============================================
+function kaydetAyarlar() {
+  const raf   = parseInt(document.getElementById('ayar-raf').value) || 20;
+  const sifre = document.getElementById('ayar-sifre').value;
+  RAF_SAYISI  = raf;
+  localStorage.setItem('valizhane_raf', raf);
+  if (sifre) localStorage.setItem('valizhane_sifre', sifre);
+  renderRaflar();
+  showToast('Ayarlar kaydedildi!', 'success');
+}
+
+async function testBaglanti() {
+  showLoading('Test ediliyor...');
+  try {
+    await apiGet('Ogrenciler');
+    showToast('✅ Bağlantı başarılı!', 'success');
+  } catch(e) {
+    showToast('❌ Bağlantı hatası: ' + e.message, 'error');
+  }
+  hideLoading();
+}
+
+// ============================================
+// MODAL / NAV / TOAST / LOADING
+// ============================================
+function showPage(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-links button').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-'+page).classList.add('active');
+  document.getElementById('nav-'+page).classList.add('active');
+
+  if (page === 'hizli') {
+    doldurSelectler();
+    document.getElementById('ta-tarih').value = new Date().toISOString().split('T')[0];
+    document.getElementById('te-tarih').value = new Date().toISOString().split('T')[0];
+  }
+}
+
+function openModal(id) {
+  document.getElementById(id).classList.add('open');
+  if (id === 'teslimAlModal') {
+    doldurSelectler();
+    document.getElementById('ta-tarih').value = new Date().toISOString().split('T')[0];
+    document.getElementById('ta-blok').value  = '';
+    document.getElementById('ta-raf').innerHTML = '<option value="">-- Önce Blok Seçin --</option>';
+    document.getElementById('ta-sayi').value  = '1';
+    document.getElementById('ta-not').value   = '';
+  }
+  if (id === 'teslimEtModal') {
+    doldurSelectler();
+    document.getElementById('te-tarih').value = new Date().toISOString().split('T')[0];
+    document.getElementById('te-not').value   = '';
+  }
+}
+
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function showToast(msg, type='success') {
+  const c = document.getElementById('toastContainer');
+  const t = document.createElement('div');
+  t.className = 'toast' + (type==='error'?' error':type==='warning'?' warning':'');
+  t.innerHTML = `<span>${type==='success'?'✅':type==='error'?'❌':'⚠️'}</span><span>${msg}</span>`;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 4000);
+}
+
+function showLoading(text='Yükleniyor...') {
+  document.getElementById('loadingText').textContent = text;
+  document.getElementById('loadingOverlay').classList.add('open');
+}
+function hideLoading() { document.getElementById('loadingOverlay').classList.remove('open'); }
+
+// Modal dışına tıklayınca kapat
+document.querySelectorAll('.modal-overlay').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); });
+});
+</script>
+</body>
+</html>
