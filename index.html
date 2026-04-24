@@ -288,6 +288,8 @@ const API="https://script.google.com/macros/s/AKfycbyOzEOyaxIpTWh_B6N02OtFTZsNtg
 const SIFRE_DEFAULT="valizhane2024";
 let RAF=20,ogrenciler=[],valizler=[],islemler=[];
 
+function sid(a,b){return String(a)===String(b)}
+
 function doLogin(){
   if(document.getElementById('loginInput').value===(localStorage.getItem('vh_sifre')||SIFRE_DEFAULT)){
     document.getElementById('loginOverlay').style.display='none';
@@ -302,6 +304,17 @@ async function init(){
   const r=localStorage.getItem('vh_raf');
   if(r)RAF=parseInt(r);
   document.getElementById('ayar-raf').value=RAF;
+  try{
+    const cached=localStorage.getItem('vh_cache');
+    if(cached){
+      const c=JSON.parse(cached);
+      ogrenciler=c.ogrenciler||[];
+      valizler=c.valizler||[];
+      islemler=c.islemler||[];
+      renderAll();
+      setSyncStatus('ok','Cache yüklendi...');
+    }
+  }catch(e){}
   await syncAll();
   setInterval(syncAll,30000);
 }
@@ -323,6 +336,7 @@ async function syncAll(){
     islemler=r.islemler||[];
     renderAll();
     setSyncStatus('ok','Senkronize ✓');
+    try{localStorage.setItem('vh_cache',JSON.stringify({ogrenciler:ogrenciler,valizler:valizler,islemler:islemler}))}catch(e){}
   }catch(e){
     setSyncStatus('error','Hata!');
   }
@@ -334,6 +348,7 @@ function applySync(r){
     valizler=r.valizler||valizler;
     islemler=r.islemler||islemler;
     renderAll();
+    try{localStorage.setItem('vh_cache',JSON.stringify({ogrenciler:ogrenciler,valizler:valizler,islemler:islemler}))}catch(e){}
   }
 }
 
@@ -345,107 +360,173 @@ function setSyncStatus(t,txt){
 function renderAll(){renderStats();renderPanel();renderHizli();renderOgrenciler();renderRaflar();renderIslemler();renderRecent();doldurSelectler()}
 
 function renderStats(){
-  const a=valizler.filter(v=>v.durum==='icerde');
-  document.getElementById('s-toplam').textContent=a.reduce((s,v)=>s+(parseInt(v.valizSayisi)||0),0);
-  document.getElementById('s-ablok').textContent=a.filter(v=>v.blok==='A').reduce((s,v)=>s+(parseInt(v.valizSayisi)||0),0);
-  document.getElementById('s-bblok').textContent=a.filter(v=>v.blok==='B').reduce((s,v)=>s+(parseInt(v.valizSayisi)||0),0);
-  document.getElementById('s-ogrenci').textContent=[...new Set(a.map(v=>v.ogrenciId))].length;
+  const a=valizler.filter(function(v){return v.durum==='icerde'});
+  document.getElementById('s-toplam').textContent=a.reduce(function(s,v){return s+(parseInt(v.valizSayisi)||0)},0);
+  document.getElementById('s-ablok').textContent=a.filter(function(v){return v.blok==='A'}).reduce(function(s,v){return s+(parseInt(v.valizSayisi)||0)},0);
+  document.getElementById('s-bblok').textContent=a.filter(function(v){return v.blok==='B'}).reduce(function(s,v){return s+(parseInt(v.valizSayisi)||0)},0);
+  var ids={};a.forEach(function(v){ids[String(v.ogrenciId)]=true});
+  document.getElementById('s-ogrenci').textContent=Object.keys(ids).length;
   document.getElementById('s-kayitli').textContent=ogrenciler.length;
 }
 
 function renderPanel(){
-  const ara=(document.getElementById('panelAra').value||'').toLowerCase();
-  const blok=document.getElementById('panelBlok').value;
-  const f=valizler.filter(v=>v.durum==='icerde'&&(!ara||(v.ogrenciAd||'').toLowerCase().includes(ara))&&(!blok||v.blok===blok));
-  const t=document.getElementById('panelTable');
+  var ara=(document.getElementById('panelAra').value||'').toLowerCase();
+  var blok=document.getElementById('panelBlok').value;
+  var f=valizler.filter(function(v){
+    return v.durum==='icerde'&&(!ara||(v.ogrenciAd||'').toLowerCase().indexOf(ara)>=0)&&(!blok||v.blok===blok);
+  });
+  var t=document.getElementById('panelTable');
   if(!f.length){t.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--text-light);padding:30px">İçeride valiz yok</td></tr>';return}
-  t.innerHTML=f.map(v=>{
-    const o=ogrenciler.find(x=>x.id==v.ogrenciId)||{};
-    return '<tr><td><b>'+( v.ogrenciAd||'')+'</b></td><td>'+(o.odaNo||'-')+'</td><td><span class="badge badge-'+(v.blok||'a').toLowerCase()+'">'+(v.blok||'')+' Blok</span></td><td>Raf '+(v.rafNo||'')+'</td><td>'+(v.valizSayisi||'')+'</td><td>'+(v.teslimTarih||'')+'</td><td><button class="btn btn-danger btn-sm" onclick="hizliTeslimEt(\''+v.id+'\')">📤</button></td></tr>';
-  }).join('');
+  var html='';
+  for(var i=0;i<f.length;i++){
+    var v=f[i];
+    var o=null;
+    for(var j=0;j<ogrenciler.length;j++){if(sid(ogrenciler[j].id,v.ogrenciId)){o=ogrenciler[j];break}}
+    if(!o)o={};
+    html+='<tr><td><b>'+(v.ogrenciAd||'')+'</b></td><td>'+(o.odaNo||'-')+'</td><td><span class="badge badge-'+(v.blok||'a').toLowerCase()+'">'+(v.blok||'')+' Blok</span></td><td>Raf '+(v.rafNo||'')+'</td><td>'+(v.valizSayisi||'')+'</td><td>'+(v.teslimTarih||'')+'</td><td><button class="btn btn-danger btn-sm" onclick="hizliTeslimEt(\''+v.id+'\')">📤</button></td></tr>';
+  }
+  t.innerHTML=html;
 }
 
 function renderHizli(){
-  const a=valizler.filter(v=>v.durum==='icerde');
-  const t=document.getElementById('hizliTable');
+  var a=valizler.filter(function(v){return v.durum==='icerde'});
+  var t=document.getElementById('hizliTable');
   if(!a.length){t.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--text-light);padding:30px">İçeride valiz yok</td></tr>';return}
-  t.innerHTML=a.map(v=>'<tr><td><b>'+(v.ogrenciAd||'')+'</b></td><td>'+((ogrenciler.find(o=>o.id==v.ogrenciId)||{}).odaNo||'-')+'</td><td><span class="badge badge-'+(v.blok||'a').toLowerCase()+'">'+(v.blok||'')+' Blok</span></td><td>Raf '+(v.rafNo||'')+'</td><td>'+(v.valizSayisi||'')+'</td><td>'+(v.teslimTarih||'')+'</td><td>'+(v.not||'-')+'</td><td><button class="btn btn-danger btn-sm" onclick="hizliTeslimEt(\''+v.id+'\')">📤</button></td></tr>').join('');
+  var html='';
+  for(var i=0;i<a.length;i++){
+    var v=a[i];
+    var o=null;
+    for(var j=0;j<ogrenciler.length;j++){if(sid(ogrenciler[j].id,v.ogrenciId)){o=ogrenciler[j];break}}
+    if(!o)o={};
+    html+='<tr><td><b>'+(v.ogrenciAd||'')+'</b></td><td>'+(o.odaNo||'-')+'</td><td><span class="badge badge-'+(v.blok||'a').toLowerCase()+'">'+(v.blok||'')+' Blok</span></td><td>Raf '+(v.rafNo||'')+'</td><td>'+(v.valizSayisi||'')+'</td><td>'+(v.teslimTarih||'')+'</td><td>'+(v.not||'-')+'</td><td><button class="btn btn-danger btn-sm" onclick="hizliTeslimEt(\''+v.id+'\')">📤</button></td></tr>';
+  }
+  t.innerHTML=html;
 }
 
 function renderOgrenciler(){
-  const ara=(document.getElementById('ogAra').value||'').toLowerCase();
-  const f=ogrenciler.filter(o=>!ara||((o.ad||'')+(o.soyad||'')+(o.tcNo||'')+(o.odaNo||'')).toLowerCase().includes(ara));
-  const t=document.getElementById('ogrenciTable');
+  var ara=(document.getElementById('ogAra').value||'').toLowerCase();
+  var f=[];
+  for(var i=0;i<ogrenciler.length;i++){
+    var o=ogrenciler[i];
+    var txt=((o.ad||'')+(o.soyad||'')+(o.tcNo||'')+(o.odaNo||'')).toLowerCase();
+    if(!ara||txt.indexOf(ara)>=0)f.push(o);
+  }
+  var t=document.getElementById('ogrenciTable');
   if(!f.length){t.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--text-light);padding:30px">Öğrenci yok</td></tr>';return}
-  t.innerHTML=f.map(o=>{
-    const av=valizler.filter(v=>v.ogrenciId==o.id&&v.durum==='icerde');
-    const badge=av.length?'<span class="badge badge-inside">✅ '+av.length+' valiz</span>':'<span class="badge badge-outside">❌ Yok</span>';
-    return '<tr><td><b>'+(o.ad||'')+' '+(o.soyad||'')+'</b></td><td>'+(o.tcNo||'')+'</td><td>'+(o.odaNo||'')+'</td><td>'+(o.telefon||'-')+'</td><td>'+(o.kayitTarih||'')+'</td><td>'+badge+'</td><td><button class="btn btn-primary btn-sm" onclick="ogrenciDuzenleModal(\''+o.id+'\')" style="margin-right:4px">✏️</button><button class="btn btn-danger btn-sm" onclick="ogrenciSil(\''+o.id+'\')">🗑️</button></td></tr>';
-  }).join('');
+  var html='';
+  for(var i=0;i<f.length;i++){
+    var o=f[i];
+    var av=[];
+    for(var j=0;j<valizler.length;j++){
+      if(sid(valizler[j].ogrenciId,o.id)&&valizler[j].durum==='icerde')av.push(valizler[j]);
+    }
+    var toplamValiz=0;
+    for(var k=0;k<av.length;k++)toplamValiz+=parseInt(av[k].valizSayisi)||0;
+    var badge=av.length?'<span class="badge badge-inside">✅ '+av.length+' valiz ('+toplamValiz+' adet)</span>':'<span class="badge badge-outside">❌ Yok</span>';
+    html+='<tr><td><b>'+(o.ad||'')+' '+(o.soyad||'')+'</b></td><td>'+(o.tcNo||'')+'</td><td>'+(o.odaNo||'')+'</td><td>'+(o.telefon||'-')+'</td><td>'+(o.kayitTarih||'')+'</td><td>'+badge+'</td><td><button class="btn btn-primary btn-sm" onclick="ogrenciDuzenleModal(\''+o.id+'\')" style="margin-right:4px">✏️</button><button class="btn btn-danger btn-sm" onclick="ogrenciSil(\''+o.id+'\')">🗑️</button></td></tr>';
+  }
+  t.innerHTML=html;
 }
 
 function renderRaflar(){
-  ['A','B'].forEach(b=>{
-    let h='';
-    for(let i=1;i<=RAF;i++){
-      const d=valizler.some(v=>v.blok===b&&parseInt(v.rafNo)===i&&v.durum==='icerde');
-      h+='<div class="raf-item '+(d?'dolu':'bos')+'"><div>Raf '+i+'</div><div>'+(d?'🔴 Dolu':'🟢 Boş')+'</div></div>';
+  var bloklar=['A','B'];
+  for(var b=0;b<bloklar.length;b++){
+    var blok=bloklar[b];
+    var h='';
+    for(var i=1;i<=RAF;i++){
+      var dolu=false;
+      for(var j=0;j<valizler.length;j++){
+        if(valizler[j].blok===blok&&parseInt(valizler[j].rafNo)===i&&valizler[j].durum==='icerde'){dolu=true;break}
+      }
+      h+='<div class="raf-item '+(dolu?'dolu':'bos')+'"><div>Raf '+i+'</div><div>'+(dolu?'🔴 Dolu':'🟢 Boş')+'</div></div>';
     }
-    document.getElementById('raf'+b).innerHTML=h;
-  });
+    document.getElementById('raf'+blok).innerHTML=h;
+  }
 }
 
 function renderIslemler(){
-  const ara=(document.getElementById('islemAra').value||'').toLowerCase();
-  const f=[...islemler].reverse().filter(i=>!ara||((i.islem||'')+(i.detay||'')).toLowerCase().includes(ara));
-  const t=document.getElementById('islemTable');
+  var ara=(document.getElementById('islemAra').value||'').toLowerCase();
+  var all=islemler.slice().reverse();
+  var f=[];
+  for(var i=0;i<all.length;i++){
+    var x=all[i];
+    if(!ara||((x.islem||'')+(x.detay||'')).toLowerCase().indexOf(ara)>=0)f.push(x);
+  }
+  var t=document.getElementById('islemTable');
   if(!f.length){t.innerHTML='<tr><td colspan="3" style="text-align:center;color:var(--text-light);padding:30px">İşlem yok</td></tr>';return}
-  t.innerHTML=f.map(i=>'<tr><td style="white-space:nowrap">'+(i.tarih||'')+'</td><td>'+(i.islem||'')+'</td><td>'+(i.detay||'')+'</td></tr>').join('');
+  var html='';
+  for(var i=0;i<f.length;i++){
+    html+='<tr><td style="white-space:nowrap">'+(f[i].tarih||'')+'</td><td>'+(f[i].islem||'')+'</td><td>'+(f[i].detay||'')+'</td></tr>';
+  }
+  t.innerHTML=html;
 }
 
 function renderRecent(){
-  const s=[...islemler].reverse().slice(0,8);
-  const c=document.getElementById('recentList');
+  var s=islemler.slice().reverse().slice(0,8);
+  var c=document.getElementById('recentList');
   if(!s.length){c.innerHTML='<p style="color:var(--text-light)">Henüz işlem yok</p>';return}
-  c.innerHTML=s.map(i=>{
-    const ic=(i.islem||'').includes('Alındı')?'📥':(i.islem||'').includes('Edildi')?'📤':'📝';
-    return '<div class="recent-item"><div class="recent-icon">'+ic+'</div><div class="recent-info"><div class="recent-name">'+(i.islem||'')+'</div><div class="recent-detail">'+(i.detay||'')+'</div></div><div class="recent-time">'+(i.tarih||'')+'</div></div>';
-  }).join('');
+  var html='';
+  for(var i=0;i<s.length;i++){
+    var x=s[i];
+    var ic=(x.islem||'').indexOf('Alındı')>=0?'📥':(x.islem||'').indexOf('Edildi')>=0?'📤':'📝';
+    html+='<div class="recent-item"><div class="recent-icon">'+ic+'</div><div class="recent-info"><div class="recent-name">'+(x.islem||'')+'</div><div class="recent-detail">'+(x.detay||'')+'</div></div><div class="recent-time">'+(x.tarih||'')+'</div></div>';
+  }
+  c.innerHTML=html;
 }
 
 function doldurSelectler(){
-  const s1=document.getElementById('ta-ogrenci'),v1=s1.value;
-  s1.innerHTML='<option value="">-- Öğrenci Seçin --</option>'+ogrenciler.map(o=>'<option value="'+o.id+'">'+(o.ad||'')+' '+(o.soyad||'')+' - Oda '+(o.odaNo||'')+'</option>').join('');
+  var s1=document.getElementById('ta-ogrenci'),v1=s1.value;
+  var h1='<option value="">-- Öğrenci Seçin --</option>';
+  for(var i=0;i<ogrenciler.length;i++){
+    var o=ogrenciler[i];
+    h1+='<option value="'+o.id+'">'+(o.ad||'')+' '+(o.soyad||'')+' - Oda '+(o.odaNo||'')+'</option>';
+  }
+  s1.innerHTML=h1;
   if(v1)s1.value=v1;
-  const s2=document.getElementById('te-valiz'),v2=s2.value;
-  s2.innerHTML='<option value="">-- Seçin --</option>'+valizler.filter(v=>v.durum==='icerde').map(v=>'<option value="'+v.id+'">'+(v.ogrenciAd||'')+' - '+(v.blok||'')+' Raf '+(v.rafNo||'')+' ('+(v.valizSayisi||'')+')</option>').join('');
+
+  var s2=document.getElementById('te-valiz'),v2=s2.value;
+  var h2='<option value="">-- Seçin --</option>';
+  for(var i=0;i<valizler.length;i++){
+    var v=valizler[i];
+    if(v.durum==='icerde'){
+      h2+='<option value="'+v.id+'">'+(v.ogrenciAd||'')+' - '+(v.blok||'')+' Raf '+(v.rafNo||'')+' ('+(v.valizSayisi||'')+')</option>';
+    }
+  }
+  s2.innerHTML=h2;
   if(v2)s2.value=v2;
 }
 
 function rafDoldur(){
-  const b=document.getElementById('ta-blok').value,r=document.getElementById('ta-raf');
+  var b=document.getElementById('ta-blok').value,r=document.getElementById('ta-raf');
   if(!b){r.innerHTML='<option value="">-- Önce Blok Seçin --</option>';return}
-  const d=valizler.filter(v=>v.blok===b&&v.durum==='icerde').map(v=>parseInt(v.rafNo));
-  let h='<option value="">-- Raf Seçin --</option>';
-  for(let i=1;i<=RAF;i++){const x=d.includes(i);h+='<option value="'+i+'"'+(x?' disabled':'')+' style="'+(x?'color:red':'')+'">'+(x?'🔴':'🟢')+' Raf '+i+'</option>'}
+  var doluRaflar=[];
+  for(var i=0;i<valizler.length;i++){
+    if(valizler[i].blok===b&&valizler[i].durum==='icerde')doluRaflar.push(parseInt(valizler[i].rafNo));
+  }
+  var h='<option value="">-- Raf Seçin --</option>';
+  for(var i=1;i<=RAF;i++){
+    var dolu=doluRaflar.indexOf(i)>=0;
+    h+='<option value="'+i+'"'+(dolu?' disabled':'')+'>'+(dolu?'🔴':'🟢')+' Raf '+i+'</option>';
+  }
   r.innerHTML=h;
 }
 
 async function ogrenciEkle(){
-  const ad=document.getElementById('og-ad').value.trim(),soyad=document.getElementById('og-soyad').value.trim(),
-        tc=document.getElementById('og-tc').value.trim(),oda=document.getElementById('og-oda').value.trim(),
-        tel=document.getElementById('og-tel').value.trim();
+  var ad=document.getElementById('og-ad').value.trim(),soyad=document.getElementById('og-soyad').value.trim(),
+      tc=document.getElementById('og-tc').value.trim(),oda=document.getElementById('og-oda').value.trim(),
+      tel=document.getElementById('og-tel').value.trim();
   if(!ad||!soyad||!tc||!oda){showToast('Tüm alanları doldurun!','error');return}
 
-  const fakeId=Date.now().toString();
+  var fakeId=Date.now().toString();
   ogrenciler.push({id:fakeId,ad:ad,soyad:soyad,tcNo:tc,odaNo:oda,telefon:tel,kayitTarih:new Date().toLocaleString('tr-TR')});
-  islemler.push({id:(Date.now()+1).toString(),tarih:new Date().toLocaleString('tr-TR'),islem:'➕ Öğrenci Eklendi',detay:ad+' '+soyad+' - Oda '+oda});
+  islemler.push({id:String(Date.now()+1),tarih:new Date().toLocaleString('tr-TR'),islem:'➕ Öğrenci Eklendi',detay:ad+' '+soyad+' - Oda '+oda});
   renderAll();
-  ['og-ad','og-soyad','og-tc','og-oda','og-tel'].forEach(id=>document.getElementById(id).value='');
+  var fields=['og-ad','og-soyad','og-tc','og-oda','og-tel'];
+  for(var i=0;i<fields.length;i++)document.getElementById(fields[i]).value='';
   showToast(ad+' '+soyad+' eklendi!');
 
   try{
-    const r=await api({
+    var r=await api({
       action:'addOgrenci',
       data:JSON.stringify({ad:ad,soyad:soyad,tcNo:tc,odaNo:oda,telefon:tel,kayitTarih:new Date().toLocaleString('tr-TR')}),
       islemData:JSON.stringify({tarih:new Date().toLocaleString('tr-TR'),islem:'➕ Öğrenci Eklendi',detay:ad+' '+soyad+' - Oda '+oda})
@@ -455,22 +536,26 @@ async function ogrenciEkle(){
 }
 
 async function ogrenciSil(id){
-  const o=ogrenciler.find(x=>x.id==id);
+  var o=null;
+  for(var i=0;i<ogrenciler.length;i++){if(sid(ogrenciler[i].id,id)){o=ogrenciler[i];break}}
   if(!o)return;
-  if(valizler.some(v=>v.ogrenciId==id&&v.durum==='icerde')){
-    showToast('Bu öğrencinin içeride valizi var! Önce valizi teslim edin.','error');
-    return;
+  var hasValiz=false;
+  for(var i=0;i<valizler.length;i++){
+    if(sid(valizler[i].ogrenciId,id)&&valizler[i].durum==='icerde'){hasValiz=true;break}
   }
+  if(hasValiz){showToast('Bu öğrencinin içeride valizi var! Önce valizi teslim edin.','error');return}
   if(!confirm((o.ad||'')+' '+(o.soyad||'')+' silinsin mi?\n\nBu işlem geri alınamaz!'))return;
 
-  ogrenciler=ogrenciler.filter(x=>x.id!=id);
+  var yeni=[];
+  for(var i=0;i<ogrenciler.length;i++){if(!sid(ogrenciler[i].id,id))yeni.push(ogrenciler[i])}
+  ogrenciler=yeni;
   islemler.push({id:Date.now().toString(),tarih:new Date().toLocaleString('tr-TR'),islem:'🗑️ Öğrenci Silindi',detay:(o.ad||'')+' '+(o.soyad||'')+' - Oda '+(o.odaNo||'')});
   renderAll();
   showToast((o.ad||'')+' '+(o.soyad||'')+' silindi!');
 
   try{
-    const r=await api({
-      action:'deleteOgrenci',id:id,
+    var r=await api({
+      action:'deleteOgrenci',id:String(id),
       islemData:JSON.stringify({tarih:new Date().toLocaleString('tr-TR'),islem:'🗑️ Öğrenci Silindi',detay:(o.ad||'')+' '+(o.soyad||'')+' - Oda '+(o.odaNo||'')})
     });
     applySync(r);
@@ -478,7 +563,8 @@ async function ogrenciSil(id){
 }
 
 function ogrenciDuzenleModal(id){
-  const o=ogrenciler.find(x=>x.id==id);
+  var o=null;
+  for(var i=0;i<ogrenciler.length;i++){if(sid(ogrenciler[i].id,id)){o=ogrenciler[i];break}}
   if(!o)return;
   document.getElementById('edit-id').value=o.id;
   document.getElementById('edit-ad').value=o.ad||'';
@@ -490,26 +576,29 @@ function ogrenciDuzenleModal(id){
 }
 
 async function ogrenciGuncelle(){
-  const id=document.getElementById('edit-id').value;
-  const ad=document.getElementById('edit-ad').value.trim();
-  const soyad=document.getElementById('edit-soyad').value.trim();
-  const tc=document.getElementById('edit-tc').value.trim();
-  const oda=document.getElementById('edit-oda').value.trim();
-  const tel=document.getElementById('edit-tel').value.trim();
+  var id=document.getElementById('edit-id').value;
+  var ad=document.getElementById('edit-ad').value.trim();
+  var soyad=document.getElementById('edit-soyad').value.trim();
+  var tc=document.getElementById('edit-tc').value.trim();
+  var oda=document.getElementById('edit-oda').value.trim();
+  var tel=document.getElementById('edit-tel').value.trim();
   if(!ad||!soyad||!tc||!oda){showToast('Tüm alanları doldurun!','error');return}
 
-  const o=ogrenciler.find(x=>x.id==id);
-  if(o){o.ad=ad;o.soyad=soyad;o.tcNo=tc;o.odaNo=oda;o.telefon=tel}
-  valizler.filter(v=>v.ogrenciId==id).forEach(v=>v.ogrenciAd=ad+' '+soyad);
+  for(var i=0;i<ogrenciler.length;i++){
+    if(sid(ogrenciler[i].id,id)){ogrenciler[i].ad=ad;ogrenciler[i].soyad=soyad;ogrenciler[i].tcNo=tc;ogrenciler[i].odaNo=oda;ogrenciler[i].telefon=tel;break}
+  }
+  for(var i=0;i<valizler.length;i++){
+    if(sid(valizler[i].ogrenciId,id))valizler[i].ogrenciAd=ad+' '+soyad;
+  }
   islemler.push({id:Date.now().toString(),tarih:new Date().toLocaleString('tr-TR'),islem:'✏️ Öğrenci Güncellendi',detay:ad+' '+soyad+' - Oda '+oda});
   renderAll();
   closeModal('editModal');
   showToast(ad+' '+soyad+' güncellendi!');
 
   try{
-    const r=await api({
+    var r=await api({
       action:'updateOgrenci',
-      data:JSON.stringify({id:id,ad:ad,soyad:soyad,tcNo:tc,odaNo:oda,telefon:tel}),
+      data:JSON.stringify({id:String(id),ad:ad,soyad:soyad,tcNo:tc,odaNo:oda,telefon:tel}),
       islemData:JSON.stringify({tarih:new Date().toLocaleString('tr-TR'),islem:'✏️ Öğrenci Güncellendi',detay:ad+' '+soyad+' - Oda '+oda})
     });
     applySync(r);
@@ -517,34 +606,37 @@ async function ogrenciGuncelle(){
 }
 
 async function valizTeslimAl(){
-  const ogId=document.getElementById('ta-ogrenci').value,blok=document.getElementById('ta-blok').value,
-        raf=document.getElementById('ta-raf').value,sayi=document.getElementById('ta-sayi').value,
-        tarih=document.getElementById('ta-tarih').value,not=document.getElementById('ta-not').value.trim();
+  var ogId=document.getElementById('ta-ogrenci').value,blok=document.getElementById('ta-blok').value,
+      raf=document.getElementById('ta-raf').value,sayi=document.getElementById('ta-sayi').value,
+      tarih=document.getElementById('ta-tarih').value,not=document.getElementById('ta-not').value.trim();
   if(!ogId||!blok||!raf||!sayi||!tarih){showToast('Tüm alanları doldurun!','error');return}
-  const og=ogrenciler.find(o=>o.id==ogId);
+  var og=null;
+  for(var i=0;i<ogrenciler.length;i++){if(sid(ogrenciler[i].id,ogId)){og=ogrenciler[i];break}}
   if(!og){showToast('Öğrenci bulunamadı!','error');return}
 
-  const fakeId=Date.now().toString();
-  valizler.push({id:fakeId,ogrenciId:ogId,ogrenciAd:(og.ad||'')+' '+(og.soyad||''),blok:blok,rafNo:raf,valizSayisi:sayi,teslimTarih:tarih,not:not,durum:'icerde',teslimEtmeTarih:''});
-  islemler.push({id:(Date.now()+1).toString(),tarih:new Date().toLocaleString('tr-TR'),islem:'📥 Valiz Teslim Alındı',detay:(og.ad||'')+' '+(og.soyad||'')+' - '+blok+' Blok Raf '+raf+' - '+sayi+' valiz'});
+  var adSoyad=(og.ad||'')+' '+(og.soyad||'');
+  var fakeId=Date.now().toString();
+  valizler.push({id:fakeId,ogrenciId:String(ogId),ogrenciAd:adSoyad,blok:blok,rafNo:raf,valizSayisi:sayi,teslimTarih:tarih,not:not,durum:'icerde',teslimEtmeTarih:''});
+  islemler.push({id:String(Date.now()+1),tarih:new Date().toLocaleString('tr-TR'),islem:'📥 Valiz Teslim Alındı',detay:adSoyad+' - '+blok+' Blok Raf '+raf+' - '+sayi+' valiz'});
   renderAll();
   closeModal('teslimAlModal');
-  showToast((og.ad||'')+' '+(og.soyad||'')+' - '+sayi+' valiz alındı!');
+  showToast(adSoyad+' - '+sayi+' valiz alındı!');
 
   try{
-    const r=await api({
+    var r=await api({
       action:'addValiz',
-      valizData:JSON.stringify({ogrenciId:ogId,ogrenciAd:(og.ad||'')+' '+(og.soyad||''),blok:blok,rafNo:raf,valizSayisi:sayi,teslimTarih:tarih,not:not,durum:'icerde',teslimEtmeTarih:''}),
-      islemData:JSON.stringify({tarih:new Date().toLocaleString('tr-TR'),islem:'📥 Valiz Teslim Alındı',detay:(og.ad||'')+' '+(og.soyad||'')+' - '+blok+' Blok Raf '+raf+' - '+sayi+' valiz'})
+      valizData:JSON.stringify({ogrenciId:String(ogId),ogrenciAd:adSoyad,blok:blok,rafNo:raf,valizSayisi:sayi,teslimTarih:tarih,not:not,durum:'icerde',teslimEtmeTarih:''}),
+      islemData:JSON.stringify({tarih:new Date().toLocaleString('tr-TR'),islem:'📥 Valiz Teslim Alındı',detay:adSoyad+' - '+blok+' Blok Raf '+raf+' - '+sayi+' valiz'})
     });
     applySync(r);
   }catch(e){showToast('Kayıt hatası','error')}
 }
 
 async function valizTeslimEt(){
-  const vid=document.getElementById('te-valiz').value,tarih=document.getElementById('te-tarih').value,not=document.getElementById('te-not').value.trim();
+  var vid=document.getElementById('te-valiz').value,tarih=document.getElementById('te-tarih').value,not=document.getElementById('te-not').value.trim();
   if(!vid||!tarih){showToast('Alanları doldurun!','error');return}
-  const v=valizler.find(x=>x.id==vid);
+  var v=null;
+  for(var i=0;i<valizler.length;i++){if(sid(valizler[i].id,vid)){v=valizler[i];break}}
   if(!v)return;
 
   v.durum='teslim';
@@ -556,9 +648,9 @@ async function valizTeslimEt(){
   showToast('Valiz teslim edildi!');
 
   try{
-    const r=await api({
+    var r=await api({
       action:'teslimEt',
-      data:JSON.stringify({id:vid,durum:'teslim',teslimEtmeTarih:tarih,not:not||v.not||''}),
+      data:JSON.stringify({id:String(vid),durum:'teslim',teslimEtmeTarih:tarih,not:not||v.not||''}),
       islemData:JSON.stringify({tarih:new Date().toLocaleString('tr-TR'),islem:'📤 Valiz Teslim Edildi',detay:(v.ogrenciAd||'')+' - '+(v.blok||'')+' Blok Raf '+(v.rafNo||'')})
     });
     applySync(r);
@@ -566,7 +658,8 @@ async function valizTeslimEt(){
 }
 
 async function hizliTeslimEt(vid){
-  const v=valizler.find(x=>x.id==vid);
+  var v=null;
+  for(var i=0;i<valizler.length;i++){if(sid(valizler[i].id,vid)){v=valizler[i];break}}
   if(!v||!confirm((v.ogrenciAd||'')+' valiz teslim edilsin mi?'))return;
 
   v.durum='teslim';
@@ -576,9 +669,9 @@ async function hizliTeslimEt(vid){
   showToast('Teslim edildi!');
 
   try{
-    const r=await api({
+    var r=await api({
       action:'teslimEt',
-      data:JSON.stringify({id:vid,durum:'teslim',teslimEtmeTarih:new Date().toISOString().split('T')[0]}),
+      data:JSON.stringify({id:String(vid),durum:'teslim',teslimEtmeTarih:new Date().toISOString().split('T')[0]}),
       islemData:JSON.stringify({tarih:new Date().toLocaleString('tr-TR'),islem:'📤 Valiz Teslim Edildi',detay:(v.ogrenciAd||'')+' - '+(v.blok||'')+' Blok Raf '+(v.rafNo||'')})
     });
     applySync(r);
@@ -588,7 +681,7 @@ async function hizliTeslimEt(vid){
 function kaydetAyarlar(){
   RAF=parseInt(document.getElementById('ayar-raf').value)||20;
   localStorage.setItem('vh_raf',RAF);
-  const s=document.getElementById('ayar-sifre').value;
+  var s=document.getElementById('ayar-sifre').value;
   if(s)localStorage.setItem('vh_sifre',s);
   renderRaflar();
   showToast('Kaydedildi!');
@@ -601,8 +694,10 @@ async function testBaglanti(){
 }
 
 function showPage(p){
-  document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
-  document.querySelectorAll('.nav-links button').forEach(x=>x.classList.remove('active'));
+  var pages=document.querySelectorAll('.page');
+  for(var i=0;i<pages.length;i++)pages[i].classList.remove('active');
+  var btns=document.querySelectorAll('.nav-links button');
+  for(var i=0;i<btns.length;i++)btns[i].classList.remove('active');
   document.getElementById('page-'+p).classList.add('active');
   document.getElementById('nav-'+p).classList.add('active');
   if(p==='hizli'){doldurSelectler();document.getElementById('ta-tarih').value=document.getElementById('te-tarih').value=new Date().toISOString().split('T')[0]}
@@ -619,7 +714,7 @@ function closeModal(id){document.getElementById(id).classList.remove('open')}
 
 function showToast(m,t){
   t=t||'success';
-  const c=document.getElementById('toastContainer'),d=document.createElement('div');
+  var c=document.getElementById('toastContainer'),d=document.createElement('div');
   d.className='toast'+(t==='error'?' error':'');
   d.innerHTML='<span>'+(t==='success'?'✅':'❌')+'</span><span>'+m+'</span>';
   c.appendChild(d);
@@ -629,7 +724,10 @@ function showToast(m,t){
 function showLoading(t){document.getElementById('loadingText').textContent=t;document.getElementById('loadingOverlay').classList.add('open')}
 function hideLoading(){document.getElementById('loadingOverlay').classList.remove('open')}
 
-document.querySelectorAll('.modal-overlay').forEach(function(m){m.addEventListener('click',function(e){if(e.target===m)m.classList.remove('open')})});
+var modals=document.querySelectorAll('.modal-overlay');
+for(var i=0;i<modals.length;i++){
+  modals[i].addEventListener('click',function(e){if(e.target===this)this.classList.remove('open')});
+}
 </script>
 </body>
 </html>
