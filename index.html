@@ -490,7 +490,7 @@ async function ogrenciEkle() {
   hideLoading();
 }
 
-async functionasync function ogrenciSil(id) {
+async function ogrenciSil(id) {
   const o = ogrenciler.find(x=>x.id==id);
   if(!o) return;
   if(valizler.some(v=>v.ogrenciId==id&&v.durum==='icerde')) { 
