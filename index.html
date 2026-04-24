@@ -766,18 +766,33 @@ async function valizTeslimAl() {
   const sayi  = document.getElementById('ta-sayi').value;
   const tarih = document.getElementById('ta-tarih').value;
   const not   = document.getElementById('ta-not').value.trim();
+
   if (!ogId || !blok || !raf || !sayi || !tarih) {
     showToast('Tüm alanları doldurun!', 'error');
     return;
   }
-  const og = ogrenciler.find(o => o.id === ogId);
-  if (!og) { showToast('Öğrenci bulunamadı!', 'error'); return; }
-  showLoading('Valiz kaydediliyor...');
+
+  // Önce sync yap, sonra öğrenciyi bul
+  showLoading('Veriler yükleniyor...');
+  try {
+    const og_list = await apiGet('Ogrenciler');
+    ogrenciler = og_list;
+  } catch(e) {}
+
+  const og = ogrenciler.find(o => o.id == ogId || o.id === ogId || o.id.toString() === ogId.toString());
+  
+  if (!og) {
+    hideLoading();
+    showToast('Öğrenci bulunamadı! ID: ' + ogId, 'error');
+    return;
+  }
+
   try {
     await apiAdd('Valizler', {
       ogrenciId: ogId,
       ogrenciAd: `${og.ad} ${og.soyad}`,
-      blok, rafNo: raf,
+      blok, 
+      rafNo: raf,
       valizSayisi: sayi,
       teslimTarih: tarih,
       not: not,
