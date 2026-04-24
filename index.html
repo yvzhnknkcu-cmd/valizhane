@@ -500,7 +500,16 @@ async function valizTeslimAl() {
   if(!ogId||!blok||!raf||!sayi||!tarih) { showToast('Tüm alanları doldurun!','error'); return; }
   const og = ogrenciler.find(o=>o.id==ogId);
   if(!og) { showToast('Öğrenci bulunamadı!','error'); return; }
-  showLoading('Kaydediliyor...');
+
+  // Anında ekranda göster
+  const fakeId = Date.now().toString();
+  valizler.push({ id:fakeId, ogrenciId:ogId, ogrenciAd:`${og.ad} ${og.soyad}`, blok, rafNo:raf, valizSayisi:sayi, teslimTarih:tarih, not, durum:'icerde', teslimEtmeTarih:'' });
+  islemler.push({ id:(Date.now()+1).toString(), tarih:new Date().toLocaleString('tr-TR'), islem:'📥 Valiz Teslim Alındı', detay:`${og.ad} ${og.soyad} - ${blok} Blok Raf ${raf} - ${sayi} valiz` });
+  renderAll();
+  closeModal('teslimAlModal');
+  showToast(`${og.ad} ${og.soyad} - ${sayi} valiz alındı!`);
+
+  // Arka planda kaydet
   try {
     const r = await api({
       action: 'addValiz',
@@ -508,10 +517,7 @@ async function valizTeslimAl() {
       islemData: JSON.stringify({ tarih: new Date().toLocaleString('tr-TR'), islem:'📥 Valiz Teslim Alındı', detay:`${og.ad} ${og.soyad} - ${blok} Blok Raf ${raf} - ${sayi} valiz` })
     });
     applySync(r);
-    closeModal('teslimAlModal');
-    showToast(`${og.ad} ${og.soyad} - ${sayi} valiz alındı!`);
-  } catch(e) { showToast('Hata: '+e.message,'error'); }
-  hideLoading();
+  } catch(e) { showToast('Kayıt hatası, tekrar deneyin','error'); }
 }
 
 async function valizTeslimEt() {
@@ -519,7 +525,17 @@ async function valizTeslimEt() {
   if(!vid||!tarih) { showToast('Alanları doldurun!','error'); return; }
   const v = valizler.find(x=>x.id==vid);
   if(!v) return;
-  showLoading('İşleniyor...');
+
+  // Anında ekranda güncelle
+  v.durum = 'teslim';
+  v.teslimEtmeTarih = tarih;
+  if(not) v.not = not;
+  islemler.push({ id:Date.now().toString(), tarih:new Date().toLocaleString('tr-TR'), islem:'📤 Valiz Teslim Edildi', detay:`${v.ogrenciAd} - ${v.blok} Blok Raf ${v.rafNo}` });
+  renderAll();
+  closeModal('teslimEtModal');
+  showToast('Valiz teslim edildi!');
+
+  // Arka planda kaydet
   try {
     const r = await api({
       action: 'teslimEt',
@@ -527,16 +543,21 @@ async function valizTeslimEt() {
       islemData: JSON.stringify({ tarih: new Date().toLocaleString('tr-TR'), islem:'📤 Valiz Teslim Edildi', detay:`${v.ogrenciAd} - ${v.blok} Blok Raf ${v.rafNo}` })
     });
     applySync(r);
-    closeModal('teslimEtModal');
-    showToast('Valiz teslim edildi!');
-  } catch(e) { showToast('Hata: '+e.message,'error'); }
-  hideLoading();
+  } catch(e) { showToast('Kayıt hatası','error'); }
 }
 
 async function hizliTeslimEt(vid) {
   const v = valizler.find(x=>x.id==vid);
   if(!v||!confirm(`${v.ogrenciAd} valiz teslim edilsin mi?`)) return;
-  showLoading('İşleniyor...');
+
+  // Anında ekranda güncelle
+  v.durum = 'teslim';
+  v.teslimEtmeTarih = new Date().toISOString().split('T')[0];
+  islemler.push({ id:Date.now().toString(), tarih:new Date().toLocaleString('tr-TR'), islem:'📤 Valiz Teslim Edildi', detay:`${v.ogrenciAd} - ${v.blok} Blok Raf ${v.rafNo}` });
+  renderAll();
+  showToast('Teslim edildi!');
+
+  // Arka planda kaydet
   try {
     const r = await api({
       action: 'teslimEt',
@@ -544,11 +565,8 @@ async function hizliTeslimEt(vid) {
       islemData: JSON.stringify({ tarih: new Date().toLocaleString('tr-TR'), islem:'📤 Valiz Teslim Edildi', detay:`${v.ogrenciAd} - ${v.blok} Blok Raf ${v.rafNo}` })
     });
     applySync(r);
-    showToast('Teslim edildi!');
-  } catch(e) { showToast('Hata: '+e.message,'error'); }
-  hideLoading();
+  } catch(e) { showToast('Kayıt hatası','error'); }
 }
-
 function kaydetAyarlar() {
   RAF = parseInt(document.getElementById('ayar-raf').value)||20;
   localStorage.setItem('vh_raf', RAF);
