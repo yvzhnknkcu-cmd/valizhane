@@ -406,7 +406,21 @@ function renderOgrenciler() {
   if (!f.length) { t.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-light);padding:30px">Öğrenci yok</td></tr>'; return; }
   t.innerHTML = f.map(o => {
     const av = valizler.filter(v => v.ogrenciId==o.id && v.durum==='icerde');
-    return `<tr><td><b>${o.ad} ${o.soyad}</b></td><td>${o.tcNo}</td><td>${o.odaNo}</td><td>${o.telefon||''}</td><td>${o.kayitTarih||''}</td><td>${av.length?`<span class="badge badge-inside">✅ ${av.length} valiz</span>`:'<span class="badge badge-outside">❌ Yok</span>'}</td><td><button class="btn btn-danger btn-sm" onclick="ogrenciSil('${o.id}')">🗑️</button></td></tr>`;
+    const valizBadge = av.length 
+      ? `<span class="badge badge-inside">✅ ${av.length} valiz (${av.reduce((s,v)=>s+(parseInt(v.valizSayisi)||0),0)} adet)</span>`
+      : '<span class="badge badge-outside">❌ Yok</span>';
+    return `<tr>
+      <td><b>${o.ad} ${o.soyad}</b></td>
+      <td>${o.tcNo}</td>
+      <td>${o.odaNo}</td>
+      <td>${o.telefon||'-'}</td>
+      <td>${o.kayitTarih||''}</td>
+      <td>${valizBadge}</td>
+      <td>
+        <button class="btn btn-primary btn-sm" onclick="ogrenciDuzenleModal('${o.id}')" style="margin-right:4px">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="ogrenciSil('${o.id}')">🗑️</button>
+      </td>
+    </tr>`;
   }).join('');
 }
 
@@ -476,21 +490,30 @@ async function ogrenciEkle() {
   hideLoading();
 }
 
-async function ogrenciSil(id) {
+async functionasync function ogrenciSil(id) {
   const o = ogrenciler.find(x=>x.id==id);
   if(!o) return;
-  if(valizler.some(v=>v.ogrenciId==id&&v.durum==='icerde')) { showToast('Önce valizi teslim edin!','error'); return; }
-  if(!confirm(`${o.ad} ${o.soyad} silinsin mi?`)) return;
-  showLoading('Siliniyor...');
+  if(valizler.some(v=>v.ogrenciId==id&&v.durum==='icerde')) { 
+    showToast('Bu öğrencinin içeride valizi var! Önce valizi teslim edin.','error'); 
+    return; 
+  }
+  if(!confirm(`${o.ad} ${o.soyad} silinsin mi?\n\nBu işlem geri alınamaz!`)) return;
+
+  // Anında ekrandan sil
+  ogrenciler = ogrenciler.filter(x=>x.id!=id);
+  islemler.push({ id:Date.now().toString(), tarih:new Date().toLocaleString('tr-TR'), islem:'🗑️ Öğrenci Silindi', detay:`${o.ad} ${o.soyad} - Oda ${o.odaNo}` });
+  renderAll();
+  showToast(`${o.ad} ${o.soyad} silindi!`);
+
+  // Arka planda Sheets'ten de sil
   try {
     const r = await api({
-      action: 'deleteOgrenci', id,
-      islemData: JSON.stringify({ tarih: new Date().toLocaleString('tr-TR'), islem:'🗑️ Öğrenci Silindi', detay:`${o.ad} ${o.soyad}` })
+      action: 'deleteOgrenci', id:id,
+      islemData: JSON.stringify({ tarih: new Date().toLocaleString('tr-TR'), islem:'🗑️ Öğrenci Silindi', detay:`${o.ad} ${o.soyad} - Oda ${o.odaNo}` })
     });
     applySync(r);
-    showToast('Silindi!');
-  } catch(e) { showToast('Hata: '+e.message,'error'); }
-  hideLoading();
+  } catch(e) { showToast('Silme hatası','error'); }
+}
 }
 
 async function valizTeslimAl() {
@@ -602,6 +625,49 @@ function showToast(m,t='success') { const c=document.getElementById('toastContai
 function showLoading(t) { document.getElementById('loadingText').textContent=t; document.getElementById('loadingOverlay').classList.add('open'); }
 function hideLoading() { document.getElementById('loadingOverlay').classList.remove('open'); }
 document.querySelectorAll('.modal-overlay').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open')}));
+ function ogrenciDuzenleModal(id) {
+  const o = ogrenciler.find(x=>x.id==id);
+  if(!o) return;
+  document.getElementById('edit-id').value = o.id;
+  document.getElementById('edit-ad').value = o.ad||'';
+  document.getElementById('edit-soyad').value = o.soyad||'';
+  document.getElementById('edit-tc').value = o.tcNo||'';
+  document.getElementById('edit-oda').value = o.odaNo||'';
+  document.getElementById('edit-tel').value = o.telefon||'';
+  document.getElementById('editModal').classList.add('open');
+}
+
+async function ogrenciGuncelle() {
+  const id = document.getElementById('edit-id').value;
+  const ad = document.getElementById('edit-ad').value.trim();
+  const soyad = document.getElementById('edit-soyad').value.trim();
+  const tc = document.getElementById('edit-tc').value.trim();
+  const oda = document.getElementById('edit-oda').value.trim();
+  const tel = document.getElementById('edit-tel').value.trim();
+  if(!ad||!soyad||!tc||!oda) { showToast('Tüm alanları doldurun!','error'); return; }
+
+  // Anında ekranda güncelle
+  const o = ogrenciler.find(x=>x.id==id);
+  if(o) { o.ad=ad; o.soyad=soyad; o.tcNo=tc; o.odaNo=oda; o.telefon=tel; }
+  
+  // Aktif valizlerdeki ismi de güncelle
+  valizler.filter(v=>v.ogrenciId==id).forEach(v=>v.ogrenciAd=`${ad} ${soyad}`);
+  
+  islemler.push({ id:Date.now().toString(), tarih:new Date().toLocaleString('tr-TR'), islem:'✏️ Öğrenci Güncellendi', detay:`${ad} ${soyad} - Oda ${oda}` });
+  renderAll();
+  closeModal('editModal');
+  showToast(`${ad} ${soyad} güncellendi!`);
+
+  // Arka planda kaydet
+  try {
+    const r = await api({
+      action: 'updateOgrenci',
+      data: JSON.stringify({ id, ad, soyad, tcNo:tc, odaNo:oda, telefon:tel }),
+      islemData: JSON.stringify({ tarih: new Date().toLocaleString('tr-TR'), islem:'✏️ Öğrenci Güncellendi', detay:`${ad} ${soyad} - Oda ${oda}` })
+    });
+    applySync(r);
+  } catch(e) { showToast('Güncelleme hatası','error'); }
+}
 </script>
 </body>
 </html>
